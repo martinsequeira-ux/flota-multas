@@ -1,0 +1,55 @@
+name: Scraper de Multas
+
+# =====================================================================
+# FASE 3 — Automatización con GitHub Actions
+#
+# Dispara el scraper de dos formas:
+#   1. Automáticamente todos los días a las 02:00 (hora Argentina).
+#   2. Manualmente (botón "Run workflow" o vía API REST de GitHub,
+#      que es lo que usa el botón del panel Streamlit).
+#
+# IMPORTANTE — Zona horaria:
+#   GitHub Actions usa SIEMPRE UTC para el cron. Argentina es UTC-3,
+#   por lo tanto 02:00 ART = 05:00 UTC  ->  "0 5 * * *".
+# =====================================================================
+
+on:
+  schedule:
+    - cron: "0 5 * * *"     # 05:00 UTC = 02:00 Argentina (UTC-3)
+  workflow_dispatch:         # habilita ejecución manual / por API
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cachear dependencias de pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('scraper/requirements.txt') }}
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r scraper/requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Ejecutar scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          CONSULTA_URL: ${{ secrets.CONSULTA_URL }}
+          DEMO_MODE:    ${{ vars.DEMO_MODE || 'true' }}
+          MIN_DELAY:    "3"
+          MAX_DELAY:    "8"
+        run: python scraper/scraper.py
